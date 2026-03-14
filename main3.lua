@@ -1,6 +1,6 @@
 --$Name: Cubic_panos$
 --$Name(ru): Кубические панорамы$
---$Version: 0.0.5$
+--$Version: 0.0.6$
 --$Author: Lucky Ook$
 --$Author(ru): Lucky Ook$
 
@@ -19,7 +19,7 @@ game.use = 'Это не поможет.';
 game.inv = 'Зачем мне это?';
 
 global 'node' ('other')
-global 'scale_factor' (1)
+global 'scale_factor' (2)
 global 'nodes_path' ('res')
 global 'fov' (0)         -- Поле зрения в градусах
 global 'yaw' (0)        -- Рысканье (горизонталь)
@@ -27,13 +27,13 @@ global 'pitch' (0)      -- Тангаж (вертикаль)
 global 'roll' (0)        -- Крен (вертикаль)
 
 declare {
-	cubicPointer = pixels.new ("res/cursors/cursor_dot.png"),
+	cubicPointer = false,
 	side = false,
 	u = false,
 	v = false,
-	cam_canvas = pixels.new(400, 320, scale_factor),
-	CANVAS_WIDTH = 400,
-	CANVAS_HEIGHT = 320,
+	cam_canvas = pixels.new(200, 160, scale_factor),
+	CANVAS_WIDTH = 200,
+	CANVAS_HEIGHT = 160,
 	setPoint = false,
 	pointX = 0,
 	pointY = 0,
@@ -45,6 +45,15 @@ declare {
 	right = false,
 	top = false,
 	bottom = false,
+	patches = {
+		--front = {
+			--[1] = {texture = pixels.new('pics/4/kam/010_pvd.jpg'),
+			--x = 614,
+			--y = 444,
+			--width = 176,
+			--height = 336},
+		--},
+	}  -- таблица для хранения патчей
 }
 
 local mpi = math.pi
@@ -112,24 +121,26 @@ function intersectCube(ray)
     if absY > maxVal then maxAxis = 'y'; maxVal = absY end
     if absZ > maxVal then maxAxis = 'z'; maxVal = absZ end
 
-    local dir, u, v
+    local nam, dir, u, v
     if maxAxis == 'x' then
---        dir = (ray.x > 0) and left or right
         dir = (ray.x > 0) and right or left
+        nam = (ray.x > 0) and "right" or "left"
         u = -ray.z / absX
         v = ray.y / absX
     elseif maxAxis == 'y' then
         dir = (ray.y > 0) and bottom or top
+        nam = (ray.y > 0) and "bottom" or "top"
         u = ray.x / absY
         v = ray.z / absY
-    else  -- z
+    else
         dir = (ray.z > 0) and front or back
---        dir = (ray.z > 0) and back or front
+        nam = (ray.z > 0) and "front" or "back"
         u = ray.x / absZ
         v = ray.y / absZ
     end
 
     local texture = dir
+    local name = nam
     if not texture then return nil end
 
     -- Преобразуем u,v в пиксельные координаты
@@ -138,7 +149,7 @@ function intersectCube(ray)
     local py = mfloor((v + 1) * 0.5 * texH)
 
     if px >= 0 and px < texW and py >= 0 and py < texH then
-        return { texture = texture, px = px, py = py }
+        return {name = name, texture = texture, px = px, py = py }
     end
     return nil
 end
@@ -150,38 +161,126 @@ function render()
         for x = 0, CANVAS_WIDTH - 1 do
             local ray = screenToRay(x, y)
             local hit = intersectCube(ray)
-
             if hit then
                 local tex = hit.texture
                 local px, py = hit.px, hit.py
-                cam_canvas:val(x, y, tex:val(px, py))
+                
+                -- Отображаем патчи только на нужной стороне
+                local use_patch = false
+                for _, patch in ipairs(patches) do
+                  if patch.side == hit.name and  -- проверяем сторону куба
+                  px >= patch.pos_x and px < patch.pos_x + patch.width and
+                  py >= patch.pos_y and py < patch.pos_y + patch.height then
+										if patch.animation then
+											local frame_width = patch.width -- ширина фрейма равна ширине патча
+											local frame_x = (patch.frame - 1) * frame_width
+											local tx = px - patch.pos_x + frame_x
+											cam_canvas:val(x, y, patch.texture:val(tx, py - patch.pos_y))
+										else
+												cam_canvas:val(x, y, patch.texture:val(px - patch.pos_x, py - patch.pos_y))
+										end
+                    use_patch = true
+                    break  -- прерываем цикл, если нашли подходящий патч
+                  end
+                end
+                 
+                if not use_patch then
+                  cam_canvas:val(x, y, tex:val(px, py))
+                end
             else
                 cam_canvas:val(x, y, 0, 0, 0)
             end
         end
     end
     if setPoint and pointX and pointY then
-			cubicPointer:blend(cam_canvas, pointX-4 or 0, pointY-3 or 0)
+			cubicPointer:blend(cam_canvas, (pointX / scale_factor) - (4 / scale_factor) or 0, (pointY / scale_factor)-(3 /scale_factor) or 0)
     end
 end
 
 function game:timer()
+	animation_patches()
 	if setPoint and pointX and pointY then
 		local panX,panY = instead.mouse_pos();
 		panX = panX - offsetX
 		panY = panY - offsetY
-		if panX > 0 and panX < CANVAS_WIDTH*scale_factor and panY > 0 and panY < CANVAS_HEIGHT*scale_factor then
+		if panX > 0 and panX < CANVAS_WIDTH*scale_factor and panY > 0 and
+		 panY < CANVAS_HEIGHT*scale_factor then
 			yaw = (yaw - 0.5 * (pointX - panX)*0.05) % 720;
 			pitch = pitch - 0.5 * (pointY - panY)*0.05;
 			pitch = mmin(89,mmax(-89,pitch));
 		else
 			setPoint = false
-			timer:stop()
+--			timer:stop()
 		end
 	else
-		timer:stop()
+--		timer:stop()
 	end
 	std.nop()
+end
+
+function add_patch(name, side, texture, pos_x, pos_y, width, height, active, run, animation )
+    table.insert(patches, {
+        name = name or 'none',       -- имя патча
+        side = side,       -- сторона куба (например, 'front', 'back', etc.)
+        texture = pixels.new (texture), -- путь к картинке патча
+        pos_x = pos_x,
+        pos_y = pos_y,
+        width = width,
+        height = height,
+        animation = animation or false, -- таблица с параметрами анимации
+        active = active or true,        -- текущий кадр
+        frame = 1,
+        run = run or false -- флаг проигрывания анимации
+    })
+end
+
+function load_resources()
+	cubicPointer =  pixels.new ("res/cursors"..scale_factor.."/cursor_dot.png")
+end
+
+--Параметры анимации
+--frames - количество кадров
+--frame_width - ширина фрейма
+--loop - флаг цикличности анимации
+--direction - направление (1 - вперед, -1 - назад)
+
+
+function animation_patches()  -- Обновление анимации патчей
+--	local current_time = timer:get_time()
+	for i, patch in ipairs(patches) do
+		if patch.animation then
+--			local elapsed = current_time - patch.frame_time
+			if patch.run then
+				patch.frame = patch.frame + patch.animation.direction
+				if patch.frame > patch.animation.frames then
+					if patch.animation.loop then
+						patch.frame = 1
+					else
+						patch.frame = patch.animation.frames
+					end
+				elseif patch.frame < 1 then
+					if patch.animation.loop then
+						patch.frame = patch.animation.frames
+					else
+						patch.frame = 1
+					end
+				end
+--				patch.frame_time = current_time
+			end
+		end
+	end
+end
+
+function load_patches()
+	patches = {} -- очищаем таблицу патчей
+	collectgarbage("collect") -- дёргаем сборщик мусора
+	if here().node_patches then
+		for _,patch in pairs(here().node_patches) do
+			add_patch(patch.name, patch.side, patch.texture, patch.pos_x,
+			patch.pos_y, patch.width, patch.height, patch.action, patch.run,
+			patch.animation)
+		end
+	end
 end
 
 function cubic_load(node_name)
@@ -227,7 +326,8 @@ end
 function start(load)
 	fov = mrad(60)
 	cubic_load(node)
-	print (nodes_path, node)
+	load_resources()
+	load_patches()
 	place("zoom_in", me());
 	place("zoom_out", me());
 	place("roll_left", me());
@@ -277,6 +377,7 @@ room {
 		nodes_path = 'pics'
 		node = '2'
 		cubic_load(node)
+		timer:set(50)
 	end;
 	pic = function()
 		render()
@@ -285,9 +386,8 @@ room {
 	onclick = function(s, press, btn, x, y, px, py)
 		offsetX = x - px
 		offsetY = y - py
-		timer:set(50)
 	end;
-	way = {'main', 'mount', 'castle'};
+	way = {'main', 'mount', 'castle', 'laboratory', 'greed'};
 }
 
 room {
@@ -297,6 +397,7 @@ room {
 		nodes_path = 'pics'
 		node = '1'
 		cubic_load(node)
+		timer:set(50)
 	end;
 	pic = function()
 		render()
@@ -305,9 +406,8 @@ room {
 	onclick = function(s, press, btn, x, y, px, py)
 		offsetX = x - px
 		offsetY = y - py
-		timer:set(50)
 	end;
-	way = {'main', 'mount', 'castle'};
+	way = {'main', 'mount', 'castle', 'laboratory', 'greed'};
 }
 
 room {
@@ -317,6 +417,7 @@ room {
 		nodes_path = 'pics'
 		node = '3'
 		cubic_load(node)
+		timer:set(50)
 	end;
 	pic = function()
 		render()
@@ -325,7 +426,138 @@ room {
 	onclick = function(s, press, btn, x, y, px, py)
 		offsetX = x - px
 		offsetY = y - py
+	end;
+	way = {'main', 'mount', 'castle', 'laboratory', 'greed'};
+}
+
+room {
+	nam = 'laboratory';
+	disp = "Лаборатория";
+	node_patches = {
+			kamin_anim = {name = 'kamin_anim', side = 'front', texture = 'pics/4/kam/kamin.png',
+			pos_x = 614, pos_y = 444, width = 176, height = 336, active = true, run = true, animation = {
+				frames = 43,          -- кадров в анимации
+				loop = true,         -- анимация цикличная
+				direction = -1        -- направление проигрывания анимации
+			}
+		},
+		torch3_anim = {name = 'torch3_anim', side = 'right', texture = 'pics/4/flame3/torch3.png',
+		pos_x = 760, pos_y = 397, width = 48, height = 80, active = true, run = true, animation = {
+			frames = 43,          -- кадров в анимации
+			loop = true,         -- анимация цикличная
+			direction = -1        -- направление проигрывания анимации
+			}
+		},
+		{name = 'torch2_anim', side = 'right', texture = 'pics/4/flame2/torch2.png',
+		pos_x = 334, pos_y = 391, width = 72, height = 88, active = true, run = true, animation = {
+			frames = 43,          -- кадров в анимации
+			loop = true,         -- анимация цикличная
+			direction = -1        -- направление проигрывания анимации
+			}
+		},
+		{name = 'torch1_anim', side = 'left', texture = 'pics/4/flame1/torch1.png',
+		pos_x = 424, pos_y = 30, width = 248, height = 288, active = true, run = true, animation = {
+			frames = 48,          -- кадров в анимации
+			loop = true,         -- анимация цикличная
+			direction = 1        -- направление проигрывания анимации
+			}
+		},
+		{name = 'xtd_anim', side = 'right', texture = 'pics/4/xtd/xtd.png',
+		pos_x = 384, pos_y = 548, width = 32, height = 32, active = true, run = true, animation = {
+			frames = 60,          -- 8 кадров в анимации
+			loop = true,         -- анимация цикличная
+			direction = -1        -- направление проигрывания анимации
+			}
+		},
+		{name = 'reduktor_anim', side = 'right', texture = 'pics/4/reduktor/reduktor.png',
+		pos_x = 310, pos_y = 531, width = 16, height = 16, active = true, run = true, animation = {
+			frames = 40,          -- 8 кадров в анимации
+			loop = true,         -- анимация цикличная
+			direction = -1        -- направление проигрывания анимации
+			}
+		},
+		{name = 'patrubok_anim', side = 'right', texture = 'pics/4/patrubok/patrubok.png',
+		pos_x = 332, pos_y = 549, width = 48, height = 32, active = true, run = true, animation = {
+			frames = 40,          -- 8 кадров в анимации
+			loop = true,         -- анимация цикличная
+			direction = -1        -- направление проигрывания анимации
+			}
+		}
+	};
+	onenter = function()
+		nodes_path = 'pics'
+		node = '4/scene'
+		cubic_load(node)
 		timer:set(50)
 	end;
-	way = {'main', 'mount', 'castle'};
+	enter = function()
+		load_patches()
+	end;
+	pic = function()
+		render()
+		return cam_canvas:sprite()
+	end;
+	onclick = function(s, press, btn, x, y, px, py)
+		offsetX = x - px
+		offsetY = y - py
+	end;
+	way = {'main', 'mount', 'castle', 'laboratory', 'greed'};
 }
+
+
+room {
+	nam = 'greed';
+	disp = "Клетка";
+	decor = [[На полу я вижу {выдвигатель|выдвигатель} и {задвигатель|задвигатель}.]];
+	node_patches = {
+		door = {name = 'door',side = 'front', texture = 'pics/5/door.png', pos_x = 224, pos_y = 444, width = 356, height = 406, action = true},
+		torch = {name = 'torch',side = 'right', texture = 'pics/5/torch3.png', pos_x = 761, pos_y = 397, width = 226, height = 394,  action = true},
+		{name = 'torch',side = 'front', texture = 'pics/5/torch3.png', pos_x = 761, pos_y = 397, width = 226, height = 394,  action = true}
+	};
+	onenter = function()
+		nodes_path = 'pics'
+		node = '5'
+		cubic_load(node)
+		timer:set(50)
+	end;
+	enter = function()
+		load_patches()
+	end;
+	pic = function()
+		render()
+		return cam_canvas:sprite()
+	end;
+	onclick = function(s, press, btn, x, y, px, py)
+		offsetX = x - px
+		offsetY = y - py
+--		timer:set(50)
+	end;
+	way = {'main', 'mount', 'castle', 'laboratory', 'greed'};
+}:with {
+	obj {
+		nam = 'задвигатель';
+		act = function(s)
+			pn [[Тяжелый!]];
+			for _, patch in ipairs(patches) do
+				if patch.name == 'door' then
+					patch.pos_x = patch.pos_x + 10
+					here().node_patches.door.pos_x = patch.pos_x
+					pn (patch.pos_x)
+				end
+			end
+		end;
+	};
+	obj {
+		nam = 'выдвигатель';
+		act = function(s)
+			pn [[Тяжелый!]];
+			for _, patch in ipairs(patches) do
+				if patch.name == 'door' then
+					patch.pos_x = patch.pos_x - 10
+					here().node_patches.door.pos_x = patch.pos_x
+					pn (patch.pos_x)
+				end
+			end
+		end;
+	};
+};
