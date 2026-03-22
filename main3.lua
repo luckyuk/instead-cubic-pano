@@ -1,6 +1,6 @@
 --$Name: Cubic_panos$
 --$Name(ru): Кубические панорамы$
---$Version: 0.0.6$
+--$Version: 0.0.7$
 --$Author: Lucky Ook$
 --$Author(ru): Lucky Ook$
 
@@ -51,7 +51,8 @@ declare {
 			--x = 614,
 			--y = 444,
 			--width = 176,
-			--height = 336},
+			--height = 336
+			--depth = 0, -- глубина патча для порядка отрисовки
 		--},
 	}  -- таблица для хранения патчей
 }
@@ -171,16 +172,26 @@ function render()
                   if patch.side == hit.name and  -- проверяем сторону куба
                   px >= patch.pos_x and px < patch.pos_x + patch.width and
                   py >= patch.pos_y and py < patch.pos_y + patch.height then
+										local r, g, b, a
 										if patch.animation then
 											local frame_width = patch.width -- ширина фрейма равна ширине патча
 											local frame_x = (patch.frame - 1) * frame_width
 											local tx = px - patch.pos_x + frame_x
-											cam_canvas:val(x, y, patch.texture:val(tx, py - patch.pos_y))
+											r, g, b, a = patch.texture:val(tx, py - patch.pos_y)
+										--	if a > 254 then
+										--		cam_canvas:val(x, y, patch.texture:val(tx, py - patch.pos_y))
+										--	end
 										else
-												cam_canvas:val(x, y, patch.texture:val(px - patch.pos_x, py - patch.pos_y))
+											r, g, b, a = patch.texture:val(px - patch.pos_x, py - patch.pos_y)
+										--	if a > 254 then
+										--		cam_canvas:val(x, y, patch.texture:val(px - patch.pos_x, py - patch.pos_y))
+										--	end
 										end
-                    use_patch = true
-                    break  -- прерываем цикл, если нашли подходящий патч
+										if  a > 254 then
+											cam_canvas:val(x, y, r, g, b)
+											use_patch = true
+											break  -- прерываем цикл, если нашли подходящий патч
+										end
                   end
                 end
                  
@@ -218,7 +229,14 @@ function game:timer()
 	std.nop()
 end
 
-function add_patch(name, side, texture, pos_x, pos_y, width, height, active, run, animation )
+-- Функция сортировки патчей по глубине
+function sortPatchesByDepth()
+    table.sort(patches, function(a, b) 
+        return a.depth < b.depth 
+    end)
+end
+
+function add_patch(name, side, texture, pos_x, pos_y, width, height, depth,  active, run, animation )
     table.insert(patches, {
         name = name or 'none',       -- имя патча
         side = side,       -- сторона куба (например, 'front', 'back', etc.)
@@ -227,11 +245,14 @@ function add_patch(name, side, texture, pos_x, pos_y, width, height, active, run
         pos_y = pos_y,
         width = width,
         height = height,
+        depth = depth or 0,
         animation = animation or false, -- таблица с параметрами анимации
         active = active or true,        -- текущий кадр
         frame = 1,
         run = run or false -- флаг проигрывания анимации
     })
+    -- Вызываем сортировку после добавления нового патча
+    sortPatchesByDepth()
 end
 
 function load_resources()
@@ -277,11 +298,15 @@ function load_patches()
 	if here().node_patches then
 		for _,patch in pairs(here().node_patches) do
 			add_patch(patch.name, patch.side, patch.texture, patch.pos_x,
-			patch.pos_y, patch.width, patch.height, patch.action, patch.run,
+			patch.pos_y, patch.width, patch.height, patch.depth, patch.active, patch.run,
 			patch.animation)
 		end
 	end
+	-- Сортируем все патчи после загрузки
+		sortPatchesByDepth()
 end
+
+
 
 function cubic_load(node_name)
 	local node = node_name
@@ -435,49 +460,49 @@ room {
 	disp = "Лаборатория";
 	node_patches = {
 			kamin_anim = {name = 'kamin_anim', side = 'front', texture = 'pics/4/kam/kamin.png',
-			pos_x = 614, pos_y = 444, width = 176, height = 336, active = true, run = true, animation = {
+			pos_x = 614, pos_y = 444, width = 176, height = 336, depth = 0, active = true, run = true, animation = {
 				frames = 43,          -- кадров в анимации
 				loop = true,         -- анимация цикличная
 				direction = -1        -- направление проигрывания анимации
 			}
 		},
 		torch3_anim = {name = 'torch3_anim', side = 'right', texture = 'pics/4/flame3/torch3.png',
-		pos_x = 760, pos_y = 397, width = 48, height = 80, active = true, run = true, animation = {
+		pos_x = 760, pos_y = 397, width = 48, height = 80, depth = 0, active = true, run = true, animation = {
 			frames = 43,          -- кадров в анимации
 			loop = true,         -- анимация цикличная
 			direction = -1        -- направление проигрывания анимации
 			}
 		},
 		{name = 'torch2_anim', side = 'right', texture = 'pics/4/flame2/torch2.png',
-		pos_x = 334, pos_y = 391, width = 72, height = 88, active = true, run = true, animation = {
+		pos_x = 334, pos_y = 391, width = 72, height = 88, depth = 0, active = true, run = true, animation = {
 			frames = 43,          -- кадров в анимации
 			loop = true,         -- анимация цикличная
 			direction = -1        -- направление проигрывания анимации
 			}
 		},
 		{name = 'torch1_anim', side = 'left', texture = 'pics/4/flame1/torch1.png',
-		pos_x = 424, pos_y = 30, width = 248, height = 288, active = true, run = true, animation = {
+		pos_x = 424, pos_y = 30, width = 248, height = 288, depth = 0, active = true, run = true, animation = {
 			frames = 48,          -- кадров в анимации
 			loop = true,         -- анимация цикличная
 			direction = 1        -- направление проигрывания анимации
 			}
 		},
 		{name = 'xtd_anim', side = 'right', texture = 'pics/4/xtd/xtd.png',
-		pos_x = 384, pos_y = 548, width = 32, height = 32, active = true, run = true, animation = {
+		pos_x = 384, pos_y = 548, width = 32, height = 32, depth = 0, active = true, run = true, animation = {
 			frames = 60,          -- 8 кадров в анимации
 			loop = true,         -- анимация цикличная
 			direction = -1        -- направление проигрывания анимации
 			}
 		},
 		{name = 'reduktor_anim', side = 'right', texture = 'pics/4/reduktor/reduktor.png',
-		pos_x = 310, pos_y = 531, width = 16, height = 16, active = true, run = true, animation = {
+		pos_x = 310, pos_y = 531, width = 16, height = 16, depth = 0, active = true, run = true, animation = {
 			frames = 40,          -- 8 кадров в анимации
 			loop = true,         -- анимация цикличная
 			direction = -1        -- направление проигрывания анимации
 			}
 		},
 		{name = 'patrubok_anim', side = 'right', texture = 'pics/4/patrubok/patrubok.png',
-		pos_x = 332, pos_y = 549, width = 48, height = 32, active = true, run = true, animation = {
+		pos_x = 332, pos_y = 549, width = 48, height = 32, depth = 0, active = true, run = true, animation = {
 			frames = 40,          -- 8 кадров в анимации
 			loop = true,         -- анимация цикличная
 			direction = -1        -- направление проигрывания анимации
@@ -508,11 +533,12 @@ room {
 room {
 	nam = 'greed';
 	disp = "Клетка";
-	decor = [[На полу я вижу {выдвигатель|выдвигатель} и {задвигатель|задвигатель}.]];
+	decor = [[На полу я вижу {выдвигатель|выдвигатель}, {переставлятель|переставлятель} и {задвигатель|задвигатель}.]];
 	node_patches = {
-		door = {name = 'door',side = 'front', texture = 'pics/5/door.png', pos_x = 224, pos_y = 444, width = 356, height = 406, action = true},
-		torch = {name = 'torch',side = 'right', texture = 'pics/5/torch3.png', pos_x = 761, pos_y = 397, width = 226, height = 394,  action = true},
-		{name = 'torch',side = 'front', texture = 'pics/5/torch3.png', pos_x = 761, pos_y = 397, width = 226, height = 394,  action = true}
+		torch1 = {name = 'torch1',side = 'front', texture = 'pics/5/torch4.png', pos_x = 801, pos_y = 397, width = 226, height = 394, depth = -1, action = true},
+		door = {name = 'door',side = 'front', texture = 'pics/5/door.png', pos_x = 224, pos_y = 444, width = 356, height = 406, depth = 2, action = true},
+		torch = {name = 'torch',side = 'right', texture = 'pics/5/torch3.png', pos_x = 761, pos_y = 397, width = 226, height = 394, depth = 0, action = true},
+		torch2 ={name = 'torch2',side = 'front', texture = 'pics/5/torch4.png', pos_x = 761, pos_y = 397, width = 226, height = 394, depth = 7,  action = true},
 	};
 	onenter = function()
 		nodes_path = 'pics'
@@ -548,6 +574,24 @@ room {
 		end;
 	};
 	obj {
+		nam = 'переставлятель';
+		act = function(s)
+			pn [[Тяжелый!]];
+			local a, b
+			for _, patch in ipairs(patches) do
+				if patch.name == 'torch1' then a = patch.depth end;
+				if patch.name == 'torch2' then b = patch.depth end;
+			end
+			for _, patch in ipairs(patches) do
+				if patch.name == 'torch1' then patch.depth = b end;
+				if patch.name == 'torch2' then patch.depth = a end;
+			end
+			here().node_patches.torch1.depth = b
+			here().node_patches.torch2.depth = a
+			sortPatchesByDepth()
+		end;
+	};
+		obj {
 		nam = 'выдвигатель';
 		act = function(s)
 			pn [[Тяжелый!]];
