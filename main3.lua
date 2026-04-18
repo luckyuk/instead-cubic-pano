@@ -1,6 +1,6 @@
 --$Name: Cubic_panos$
 --$Name(ru): Кубические панорамы$
---$Version: 0.0.7$
+--$Version: 0.0.8.1$
 --$Author: Lucky Ook$
 --$Author(ru): Lucky Ook$
 
@@ -19,7 +19,9 @@ game.use = 'Это не поможет.';
 game.inv = 'Зачем мне это?';
 
 global 'node' ('other')
-global 'scale_factor' (2)
+global 'pixls_viewport_scale' (1) -- масштабирование исходного массива пикселей вьюпорта
+global 'sprite_output_scale' (2) -- масштабирование вьюпорта после рендера
+global 'smooth' (5) -- сглаживание при масштабировании после рендера
 global 'nodes_path' ('res')
 global 'fov' (0)         -- Поле зрения в градусах
 global 'yaw' (0)        -- Рысканье (горизонталь)
@@ -31,7 +33,7 @@ declare {
 	side = false,
 	u = false,
 	v = false,
-	cam_canvas = pixels.new(200, 160, scale_factor),
+	cam_canvas = pixels.new(200, 160, pixls_viewport_scale),
 	CANVAS_WIDTH = 200,
 	CANVAS_HEIGHT = 160,
 	setPoint = false,
@@ -54,7 +56,8 @@ declare {
 			--height = 336
 			--depth = 0, -- глубина патча для порядка отрисовки
 		--},
-	}  -- таблица для хранения патчей
+	},  -- таблица для хранения патчей
+	hotspots = {},  -- таблица для хранения горячих точек
 }
 
 local mpi = math.pi
@@ -68,17 +71,35 @@ local macos = math.acos
 local mfloor = math.floor
 local mabs = math.abs
 local mrad = math.rad
+local cor_res = CANVAS_WIDTH/CANVAS_HEIGHT -- компенсация искажения
 
 function click:filter(press, btn, x, y, px, py)
 	setPoint = press
 	pointX, pointY = px, py
 --	dprint(press, btn, x, y, px, py)
+	-- проверяем попадание в горячие точки
+	if press and px and py then
+		local hit = intersectCube(screenToRay(pointX / pixls_viewport_scale / sprite_output_scale, pointY / pixls_viewport_scale / sprite_output_scale))
+		if hit then
+			for _, spot in ipairs(hotspots) do
+				if spot.side == hit.name then
+					local tx = hit.px - spot.x
+					local ty = hit.py - spot.y
+					if tx >= 0 and tx < spot.width and ty >= 0 and ty < spot.height then
+						--print (tx, ty)
+						spot.action()
+						break
+					end
+				end
+			end
+		end
+	end
 	return press and px -- ловим только нажатия на картинку
 end
 
 -- Преобразование экранных координат в направляющий луч
 function screenToRay(x, y)
-    local nx = ((x / CANVAS_WIDTH) * 2 - 1) * mtan(fov * 0.5)
+    local nx = ((x / CANVAS_WIDTH) * 2 - 1) * mtan(fov * 0.5) * cor_res
     local ny = ((y / CANVAS_HEIGHT) * 2 - 1) * mtan(fov * 0.5)
 
     local f = 1 / mtan(fov * 0.5)
@@ -203,9 +224,29 @@ function render()
             end
         end
     end
-    if setPoint and pointX and pointY then
-			cubicPointer:blend(cam_canvas, (pointX / scale_factor) - (4 / scale_factor) or 0, (pointY / scale_factor)-(3 /scale_factor) or 0)
+    for _, spot in ipairs(hotspots) do
+        local side = spot.side
+        local texture = _G[side]
+        if texture then
+            local tx = spot.x
+            local ty = spot.y
+            local tw = spot.width
+            local th = spot.height
+            
+            -- рисуем рамку вокруг горячей точки
+            texture:line(tx-1, ty-1, tx+tw+1, ty-1, 255, 0, 0)
+            texture:line(tx-1, ty-1, tx-1, ty+th+1, 255, 0, 0)
+            texture:line(tx+tw+1, ty-1, tx+tw+1, ty+th+1, 255, 0, 0)
+            texture:line(tx-1, ty+th+1, tx+tw+1, ty+th+1, 255, 0, 0)
+            texture:line(tx-2, ty-2, tx+tw+2, ty-2, 255, 0, 0)
+            texture:line(tx-2, ty-2, tx-2, ty+th+2, 255, 0, 0)
+            texture:line(tx+tw+2, ty-2, tx+tw+2, ty+th+2, 255, 0, 0)
+            texture:line(tx-2, ty+th+2, tx+tw+2, ty+th+2, 255, 0, 0)
+        end
     end
+    if setPoint and pointX and pointY then
+			cubicPointer:blend(cam_canvas, (pointX / pixls_viewport_scale / sprite_output_scale) - (4 / pixls_viewport_scale / sprite_output_scale) or 0, (pointY / pixls_viewport_scale / sprite_output_scale)-(3 /pixls_viewport_scale / sprite_output_scale) or 0)
+    end -- добавить масштабирование
 end
 
 function game:timer()
@@ -214,8 +255,8 @@ function game:timer()
 		local panX,panY = instead.mouse_pos();
 		panX = panX - offsetX
 		panY = panY - offsetY
-		if panX > 0 and panX < CANVAS_WIDTH*scale_factor and panY > 0 and
-		 panY < CANVAS_HEIGHT*scale_factor then
+		if panX > 0 and panX < CANVAS_WIDTH*pixls_viewport_scale*sprite_output_scale and panY > 0 and -- добавить масштабирование
+		 panY < CANVAS_HEIGHT*pixls_viewport_scale*sprite_output_scale then -- добавить масштабирование
 			yaw = (yaw - 0.5 * (pointX - panX)*0.05) % 720;
 			pitch = pitch - 0.5 * (pointY - panY)*0.05;
 			pitch = mmin(89,mmax(-89,pitch));
@@ -255,8 +296,20 @@ function add_patch(name, side, texture, pos_x, pos_y, width, height, depth,  act
     sortPatchesByDepth()
 end
 
+function add_hotspot(name, side, x, y, width, height, action)
+    table.insert(hotspots, {
+        name = name,
+        side = side,
+        x = x,
+        y = y,
+        width = width,
+        height = height,
+        action = action
+    })
+end
+
 function load_resources()
-	cubicPointer =  pixels.new ("res/cursors"..scale_factor.."/cursor_dot.png")
+	cubicPointer =  pixels.new ("res/cursors"..pixls_viewport_scale.."/cursor_dot.png")
 end
 
 --Параметры анимации
@@ -306,7 +359,18 @@ function load_patches()
 		sortPatchesByDepth()
 end
 
-
+function load_hotspots()
+	hotspots = {} -- очищаем таблицу патчей
+	collectgarbage("collect") -- дёргаем сборщик мусора
+	if here().node_hotspots then
+		for _,hotspot in pairs(here().node_hotspots) do
+			add_hotspot(hotspot.name, hotspot.side, hotspot.x, hotspot.y,
+			hotspot.width, hotspot.height, hotspot.action)
+		end
+	end
+	-- Сортируем все патчи после загрузки
+		--sortPatchesByDepth()
+end
 
 function cubic_load(node_name)
 	local node = node_name
@@ -353,6 +417,7 @@ function start(load)
 	cubic_load(node)
 	load_resources()
 	load_patches()
+	load_hotspots()
 	place("zoom_in", me());
 	place("zoom_out", me());
 	place("roll_left", me());
@@ -406,7 +471,8 @@ room {
 	end;
 	pic = function()
 		render()
-		return cam_canvas:sprite()
+		--return cam_canvas:sprite()
+		return cam_canvas:scale(sprite_output_scale, sprite_output_scale, smooth):sprite()
 	end;
 	onclick = function(s, press, btn, x, y, px, py)
 		offsetX = x - px
@@ -426,7 +492,8 @@ room {
 	end;
 	pic = function()
 		render()
-		return cam_canvas:sprite()
+		--return cam_canvas:sprite()
+		return cam_canvas:scale(sprite_output_scale, sprite_output_scale, smooth):sprite()
 	end;
 	onclick = function(s, press, btn, x, y, px, py)
 		offsetX = x - px
@@ -446,7 +513,8 @@ room {
 	end;
 	pic = function()
 		render()
-		return cam_canvas:sprite()
+		--return cam_canvas:sprite()
+		return cam_canvas:scale(sprite_output_scale, sprite_output_scale, smooth):sprite()
 	end;
 	onclick = function(s, press, btn, x, y, px, py)
 		offsetX = x - px
@@ -520,7 +588,8 @@ room {
 	end;
 	pic = function()
 		render()
-		return cam_canvas:sprite()
+--		return cam_canvas:sprite()
+		return cam_canvas:scale(sprite_output_scale, sprite_output_scale, smooth):sprite()
 	end;
 	onclick = function(s, press, btn, x, y, px, py)
 		offsetX = x - px
@@ -533,12 +602,21 @@ room {
 room {
 	nam = 'greed';
 	disp = "Клетка";
-	decor = [[На полу я вижу {выдвигатель|выдвигатель}, {переставлятель|переставлятель} и {задвигатель|задвигатель}.]];
+	decor = function()
+		return [[На полу я вижу {выдвигатель|выдвигатель}, {переставлятель|переставлятель} и {задвигатель|задвигатель}.]]
+	end;
+	dsc = "";
 	node_patches = {
 		torch1 = {name = 'torch1',side = 'front', texture = 'pics/5/torch4.png', pos_x = 801, pos_y = 397, width = 226, height = 394, depth = -1, action = true},
 		door = {name = 'door',side = 'front', texture = 'pics/5/door.png', pos_x = 224, pos_y = 444, width = 356, height = 406, depth = 2, action = true},
 		torch = {name = 'torch',side = 'right', texture = 'pics/5/torch3.png', pos_x = 761, pos_y = 397, width = 226, height = 394, depth = 0, action = true},
 		torch2 ={name = 'torch2',side = 'front', texture = 'pics/5/torch4.png', pos_x = 761, pos_y = 397, width = 226, height = 394, depth = 7,  action = true},
+	};
+	node_hotspots = {
+		first_spot = {name = 'first_spot', side = 'front', x = 223, y = 443, width = 357, height = 401,
+			action = function() _'ерундовина'.ecran = _'ерундовина'.ecran.."^ngfhgfhf" end},
+		way_spot = {name = 'way_spot', side = 'right', x = 760, y = 396, width = 227, height = 395,
+			action = function() walk 'laboratory' end},
 	};
 	onenter = function()
 		nodes_path = 'pics'
@@ -547,16 +625,22 @@ room {
 		timer:set(50)
 	end;
 	enter = function()
+		print (pixls_viewport_scale)
 		load_patches()
+		load_hotspots()
 	end;
 	pic = function()
 		render()
-		return cam_canvas:sprite()
+		return cam_canvas:scale(sprite_output_scale, sprite_output_scale, smooth):sprite()
 	end;
 	onclick = function(s, press, btn, x, y, px, py)
 		offsetX = x - px
 		offsetY = y - py
 --		timer:set(50)
+	end;
+	onexit = function()
+		patches = {}
+		hotspots = {}
 	end;
 	way = {'main', 'mount', 'castle', 'laboratory', 'greed'};
 }:with {
@@ -603,5 +687,10 @@ room {
 				end
 			end
 		end;
+	};
+	obj {
+		nam = 'ерундовина';
+		ecran = [[]];
+		display = function(s) return s.ecran..[[ggjhg]] end;
 	};
 };
