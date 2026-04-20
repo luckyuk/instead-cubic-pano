@@ -1,6 +1,6 @@
 --$Name: Cubic_panos$
 --$Name(ru): Кубические панорамы$
---$Version: 0.0.8.1$
+--$Version: 0.0.8.3$
 --$Author: Lucky Ook$
 --$Author(ru): Lucky Ook$
 
@@ -77,23 +77,6 @@ function click:filter(press, btn, x, y, px, py)
 	setPoint = press
 	pointX, pointY = px, py
 --	dprint(press, btn, x, y, px, py)
-	-- проверяем попадание в горячие точки
-	if press and px and py then
-		local hit = intersectCube(screenToRay(pointX / pixls_viewport_scale / sprite_output_scale, pointY / pixls_viewport_scale / sprite_output_scale))
-		if hit then
-			for _, spot in ipairs(hotspots) do
-				if spot.side == hit.name then
-					local tx = hit.px - spot.x
-					local ty = hit.py - spot.y
-					if tx >= 0 and tx < spot.width and ty >= 0 and ty < spot.height then
-						--print (tx, ty)
-						spot.action()
-						break
-					end
-				end
-			end
-		end
-	end
 	return press and px -- ловим только нажатия на картинку
 end
 
@@ -308,6 +291,26 @@ function add_hotspot(name, side, x, y, width, height, action)
     })
 end
 
+function hotspot_check (press,px, py)
+	-- проверяем попадание в горячие точки
+	if press and px and py then
+		local hit = intersectCube(screenToRay(pointX / pixls_viewport_scale / sprite_output_scale, pointY / pixls_viewport_scale / sprite_output_scale))
+		if hit then
+			for _, spot in ipairs(hotspots) do
+				if spot.side == hit.name then
+					local tx = hit.px - spot.x
+					local ty = hit.py - spot.y
+					if tx >= 0 and tx < spot.width and ty >= 0 and ty < spot.height then
+						--print (tx, ty)
+						spot.action()
+						break
+					end
+				end
+			end
+		end
+	end
+end
+
 function load_resources()
 	cubicPointer =  pixels.new ("res/cursors"..pixls_viewport_scale.."/cursor_dot.png")
 end
@@ -372,7 +375,18 @@ function load_hotspots()
 		--sortPatchesByDepth()
 end
 
+function cubic_clean()
+	front = false
+	back = false
+	left = false
+	right = false
+	top = false
+	bottom = false
+end
+
 function cubic_load(node_name)
+	cubic_clean()
+	collectgarbage("collect")
 	local node = node_name
 		if not front then
 			front = pixels.new (nodes_path..'/'..node..'/'.."negz.jpg")
@@ -413,7 +427,7 @@ function cubic_load(node_name)
 end
 
 function start(load)
-	fov = mrad(60)
+	fov = mrad(75)
 	cubic_load(node)
 	load_resources()
 	load_patches()
@@ -595,6 +609,10 @@ room {
 		offsetX = x - px
 		offsetY = y - py
 	end;
+	onexit = function()
+		patches = {}
+		hotspots = {}
+	end;
 	way = {'main', 'mount', 'castle', 'laboratory', 'greed'};
 }
 
@@ -612,12 +630,14 @@ room {
 		torch = {name = 'torch',side = 'right', texture = 'pics/5/torch3.png', pos_x = 761, pos_y = 397, width = 226, height = 394, depth = 0, action = true},
 		torch2 ={name = 'torch2',side = 'front', texture = 'pics/5/torch4.png', pos_x = 761, pos_y = 397, width = 226, height = 394, depth = 7,  action = true},
 	};
-	node_hotspots = {
-		first_spot = {name = 'first_spot', side = 'front', x = 223, y = 443, width = 357, height = 401,
-			action = function() _'ерундовина'.ecran = _'ерундовина'.ecran.."^ngfhgfhf" end},
-		way_spot = {name = 'way_spot', side = 'right', x = 760, y = 396, width = 227, height = 395,
-			action = function() walk 'laboratory' end},
-	};
+	{
+		node_hotspots = {
+			first_spot = {name = 'first_spot', side = 'front', x = 223, y = 443, width = 357, height = 401,
+				action = function() _'ерундовина'.ecran = _'ерундовина'.ecran.."^ngfhgfhf" pn "Гибралтар" end},
+			way_spot = {name = 'way_spot', side = 'right', x = 760, y = 396, width = 227, height = 395,
+				action = function() walk 'laboratory'; p " "  end},
+		};
+	}; -- нет смысла сохранять хотспоты в сейв
 	onenter = function()
 		nodes_path = 'pics'
 		node = '5'
@@ -637,6 +657,7 @@ room {
 		offsetX = x - px
 		offsetY = y - py
 --		timer:set(50)
+	hotspot_check (press,px, py)
 	end;
 	onexit = function()
 		patches = {}
