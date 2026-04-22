@@ -1,6 +1,6 @@
 --$Name: Cubic_panos$
 --$Name(ru): Кубические панорамы$
---$Version: 0.0.8.3$
+--$Version: 0.0.8.3.1$
 --$Author: Lucky Ook$
 --$Author(ru): Lucky Ook$
 
@@ -215,7 +215,6 @@ function render()
             local ty = spot.y
             local tw = spot.width
             local th = spot.height
-            
             -- рисуем рамку вокруг горячей точки
             texture:line(tx-1, ty-1, tx+tw+1, ty-1, 255, 0, 0)
             texture:line(tx-1, ty-1, tx-1, ty+th+1, 255, 0, 0)
@@ -635,9 +634,9 @@ room {
 			first_spot = {name = 'first_spot', side = 'front', x = 223, y = 443, width = 357, height = 401,
 				action = function() _'ерундовина'.ecran = _'ерундовина'.ecran.."^ngfhgfhf" pn "Гибралтар" end},
 			way_spot = {name = 'way_spot', side = 'right', x = 760, y = 396, width = 227, height = 395,
-				action = function() walk 'laboratory'; p " "  end},
+				action = function() walk 'laboratory'; setPoint = press; end},
 		};
-	}; -- нет смысла сохранять хотспоты в сейв
+	}; -- нет смысла сохранять хотспоты в сейв; после walk гасим указатель принудительно.
 	onenter = function()
 		nodes_path = 'pics'
 		node = '5'
