@@ -634,7 +634,7 @@ room {
 			first_spot = {name = 'first_spot', side = 'front', x = 223, y = 443, width = 357, height = 401,
 				action = function() _'ерундовина'.ecran = _'ерундовина'.ecran.."^ngfhgfhf" pn "Гибралтар" end},
 			way_spot = {name = 'way_spot', side = 'right', x = 760, y = 396, width = 227, height = 395,
-				action = function() walk 'laboratory'; setPoint = press; end},
+				action = function() walk 'laboratory'; setPoint = false; end},
 		};
 	}; -- нет смысла сохранять хотспоты в сейв; после walk гасим указатель принудительно.
 	onenter = function()
