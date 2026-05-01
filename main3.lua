@@ -1,12 +1,13 @@
 --$Name: Cubic_panos$
 --$Name(ru): Кубические панорамы$
---$Version: 0.0.8.3.1$
+--$Version: 0.0.8.5$
 --$Author: Lucky Ook$
 --$Author(ru): Lucky Ook$
 
 require "fmt"
 require "dbg"
 require "sprite"
+require 'theme'
 require "timer"
 require "click"
 --todo
@@ -21,21 +22,22 @@ game.inv = 'Зачем мне это?';
 global 'node' ('other')
 global 'pixls_viewport_scale' (1) -- масштабирование исходного массива пикселей вьюпорта
 global 'sprite_output_scale' (2) -- масштабирование вьюпорта после рендера
-global 'smooth' (5) -- сглаживание при масштабировании после рендера
+global 'smooth' (1) -- сглаживание при масштабировании после рендера
 global 'nodes_path' ('res')
 global 'fov' (0)         -- Поле зрения в градусах
 global 'yaw' (0)        -- Рысканье (горизонталь)
 global 'pitch' (0)      -- Тангаж (вертикаль)
 global 'roll' (0)        -- Крен (вертикаль)
+global 'enable_spots_highlight' (true) -- включение подсветки хотспотов
 
 declare {
 	cubicPointer = false,
 	side = false,
 	u = false,
 	v = false,
-	cam_canvas = pixels.new(200, 160, pixls_viewport_scale),
-	CANVAS_WIDTH = 200,
-	CANVAS_HEIGHT = 160,
+	cam_canvas = pixels.new(240, 120, pixls_viewport_scale),
+	CANVAS_WIDTH = 240,
+	CANVAS_HEIGHT = 120,
 	setPoint = false,
 	pointX = 0,
 	pointY = 0,
@@ -58,6 +60,14 @@ declare {
 		--},
 	},  -- таблица для хранения патчей
 	hotspots = {},  -- таблица для хранения горячих точек
+	pic_pos_x = false, -- переменная для хранения позиции x картинки сцены
+	pic_pos_y = false,-- переменная для хранения позиции y картинки сцены
+	cursor_forvard = {cursor = sprite.new("res/cursors/cf.png"), x = 16, y = 28}, --#============================#
+	cursor_normal = {cursor = sprite.new("res/cursors/cur_n.png"), x = 8, y = 6}, --|                            |
+	cursor_hover = {cursor = sprite.new("res/cursors/cur_h.png"), x = 8, y = 6},  --|   БЛОК ИГРОВЫХ КУРСОРОВ    |
+	cursor_right = {cursor = sprite.new("res/cursors/cr.png"), x = 18, y = 10},   --|                            |
+	cursor_left = {cursor = sprite.new("res/cursors/cl.png"), x = 22, y = 10},    --|                            |
+	cursor_back = {cursor = sprite.new("res/cursors/cb.png"), x = 16, y = 12},    --#============================#
 }
 
 local mpi = math.pi
@@ -207,25 +217,21 @@ function render()
             end
         end
     end
-    for _, spot in ipairs(hotspots) do
-        local side = spot.side
-        local texture = _G[side]
-        if texture then
-            local tx = spot.x
-            local ty = spot.y
-            local tw = spot.width
-            local th = spot.height
-            -- рисуем рамку вокруг горячей точки
-            texture:line(tx-1, ty-1, tx+tw+1, ty-1, 255, 0, 0)
-            texture:line(tx-1, ty-1, tx-1, ty+th+1, 255, 0, 0)
-            texture:line(tx+tw+1, ty-1, tx+tw+1, ty+th+1, 255, 0, 0)
-            texture:line(tx-1, ty+th+1, tx+tw+1, ty+th+1, 255, 0, 0)
-            texture:line(tx-2, ty-2, tx+tw+2, ty-2, 255, 0, 0)
-            texture:line(tx-2, ty-2, tx-2, ty+th+2, 255, 0, 0)
-            texture:line(tx+tw+2, ty-2, tx+tw+2, ty+th+2, 255, 0, 0)
-            texture:line(tx-2, ty+th+2, tx+tw+2, ty+th+2, 255, 0, 0)
-        end
-    end
+    if enable_spots_highlight then
+			for _, spot in ipairs(hotspots) do
+					local side = spot.side
+					local texture = _G[side]
+					if texture then
+							local tx = spot.x
+							local ty = spot.y
+							local tw = spot.width
+							local th = spot.height
+							local thl = spot.highlight
+							-- рисуем рамку вокруг горячей точки
+							texture:fill(tx-6, ty-6, tw+12, th+12, thl[1], thl[2], thl[3], thl[4] or 255)
+					end
+			end
+		end
     if setPoint and pointX and pointY then
 			cubicPointer:blend(cam_canvas, (pointX / pixls_viewport_scale / sprite_output_scale) - (4 / pixls_viewport_scale / sprite_output_scale) or 0, (pointY / pixls_viewport_scale / sprite_output_scale)-(3 /pixls_viewport_scale / sprite_output_scale) or 0)
     end -- добавить масштабирование
@@ -233,6 +239,7 @@ end
 
 function game:timer()
 	animation_patches()
+	cursor_check()
 	if setPoint and pointX and pointY then
 		local panX,panY = instead.mouse_pos();
 		panX = panX - offsetX
@@ -278,7 +285,7 @@ function add_patch(name, side, texture, pos_x, pos_y, width, height, depth,  act
     sortPatchesByDepth()
 end
 
-function add_hotspot(name, side, x, y, width, height, action)
+function add_hotspot(name, side, x, y, width, height, cursor, highlight, action)
     table.insert(hotspots, {
         name = name,
         side = side,
@@ -286,8 +293,48 @@ function add_hotspot(name, side, x, y, width, height, action)
         y = y,
         width = width,
         height = height,
+        cursor = cursor,
+        highlight = highlight,
         action = action
     })
+end
+
+function cursor_check ()
+	-- проверяем попадание в горячие точки
+	local cx, cy = instead.mouse_pos();
+	cx = cx - pic_pos_x
+	cy = cy - pic_pos_y
+	if cx > 0 and cx < CANVAS_WIDTH*pixls_viewport_scale*sprite_output_scale and cy > 0 and -- добавить масштабирование
+		 cy < CANVAS_HEIGHT*pixls_viewport_scale*sprite_output_scale then
+		local hit = intersectCube(screenToRay(cx / pixls_viewport_scale / sprite_output_scale, cy / pixls_viewport_scale / sprite_output_scale))
+		if hit then
+		local is_hover = false
+		local cursor = false
+			for _, spot in ipairs(hotspots) do
+				if spot.side == hit.name then
+					local tx = hit.px - spot.x
+					local ty = hit.py - spot.y
+					if tx >= 0 and tx < spot.width and ty >= 0 and ty < spot.height then
+						is_hover = true
+						theme.set ('scr.gfx.cursor.normal', spot.cursor.cursor)
+						theme.set ('scr.gfx.cursor.x', spot.cursor.x)
+						theme.set ('scr.gfx.cursor.y',  spot.cursor.y)
+						break
+					end
+				end
+			end
+			--dprint (is_hover, cx, cy)
+			if not is_hover then
+				theme.set ('scr.gfx.cursor.normal', cursor_normal.cursor)
+				theme.set ('scr.gfx.cursor.x', 8)
+				theme.set ('scr.gfx.cursor.y', 6)
+			end
+		end
+	else
+		theme.reset 'scr.gfx.cursor.normal'
+		theme.reset 'scr.gfx.cursor.x'
+		theme.reset 'scr.gfx.cursor.y'
+	end
 end
 
 function hotspot_check (press,px, py)
@@ -311,7 +358,7 @@ function hotspot_check (press,px, py)
 end
 
 function load_resources()
-	cubicPointer =  pixels.new ("res/cursors"..pixls_viewport_scale.."/cursor_dot.png")
+	cubicPointer =  pixels.new ("res/cursors/cursor_dot.png")
 end
 
 --Параметры анимации
@@ -362,12 +409,12 @@ function load_patches()
 end
 
 function load_hotspots()
-	hotspots = {} -- очищаем таблицу патчей
+	hotspots = {} -- очищаем таблицу хотспотов
 	collectgarbage("collect") -- дёргаем сборщик мусора
 	if here().node_hotspots then
 		for _,hotspot in pairs(here().node_hotspots) do
 			add_hotspot(hotspot.name, hotspot.side, hotspot.x, hotspot.y,
-			hotspot.width, hotspot.height, hotspot.action)
+			hotspot.width, hotspot.height, hotspot.cursor, hotspot.highlight, hotspot.action)
 		end
 	end
 	-- Сортируем все патчи после загрузки
@@ -426,6 +473,8 @@ function cubic_load(node_name)
 end
 
 function start(load)
+	pic_pos_x = theme.get 'scr.gfx.x'
+	pic_pos_y = theme.get 'scr.gfx.y'
 	fov = mrad(75)
 	cubic_load(node)
 	load_resources()
@@ -491,7 +540,7 @@ room {
 		offsetX = x - px
 		offsetY = y - py
 	end;
-	way = {'main', 'mount', 'castle', 'laboratory', 'greed'};
+	way = {'main', 'mount', 'castle', 'laboratory', 'greed', 'steampunk'};
 }
 
 room {
@@ -512,7 +561,7 @@ room {
 		offsetX = x - px
 		offsetY = y - py
 	end;
-	way = {'main', 'mount', 'castle', 'laboratory', 'greed'};
+	way = {'main', 'mount', 'castle', 'laboratory', 'greed', 'steampunk'};
 }
 
 room {
@@ -533,7 +582,7 @@ room {
 		offsetX = x - px
 		offsetY = y - py
 	end;
-	way = {'main', 'mount', 'castle', 'laboratory', 'greed'};
+	way = {'main', 'mount', 'castle', 'laboratory', 'greed', 'steampunk'};
 }
 
 room {
@@ -612,7 +661,7 @@ room {
 		patches = {}
 		hotspots = {}
 	end;
-	way = {'main', 'mount', 'castle', 'laboratory', 'greed'};
+	way = {'main', 'mount', 'castle', 'laboratory', 'greed', 'steampunk'};
 }
 
 
@@ -631,12 +680,12 @@ room {
 	};
 	{
 		node_hotspots = {
-			first_spot = {name = 'first_spot', side = 'front', x = 223, y = 443, width = 357, height = 401,
+			first_spot = {name = 'first_spot', side = 'front', x = 223, y = 443, width = 356, height = 406, cursor = cursor_hover, highlight = {128, 256, 160, 2},
 				action = function() _'ерундовина'.ecran = _'ерундовина'.ecran.."^ngfhgfhf" pn "Гибралтар" end},
-			way_spot = {name = 'way_spot', side = 'right', x = 760, y = 396, width = 227, height = 395,
+			way_spot = {name = 'way_spot', side = 'right', x = 560, y = 396, width = 227, height = 395, cursor = cursor_forvard, highlight = {256, 128, 128, 2},
 				action = function() walk 'laboratory'; setPoint = false; end},
 		};
-	}; -- нет смысла сохранять хотспоты в сейв; после walk гасим указатель принудительно.
+	}; -- нет смысла сохранять хотспоты в сейв
 	onenter = function()
 		nodes_path = 'pics'
 		node = '5'
@@ -662,7 +711,7 @@ room {
 		patches = {}
 		hotspots = {}
 	end;
-	way = {'main', 'mount', 'castle', 'laboratory', 'greed'};
+	way = {'main', 'mount', 'castle', 'laboratory', 'greed', 'steampunk'};
 }:with {
 	obj {
 		nam = 'задвигатель';
@@ -714,3 +763,24 @@ room {
 		display = function(s) return s.ecran..[[ggjhg]] end;
 	};
 };
+
+room {
+	nam = 'steampunk';
+	disp = "Стимпанк";
+	onenter = function()
+		nodes_path = 'pics'
+		node = '6'
+		cubic_load(node)
+		timer:set(50)
+	end;
+	pic = function()
+		render()
+		--return cam_canvas:sprite()
+		return cam_canvas:scale(sprite_output_scale, sprite_output_scale, smooth):sprite()
+	end;
+	onclick = function(s, press, btn, x, y, px, py)
+		offsetX = x - px
+		offsetY = y - py
+	end;
+	way = {'main', 'mount', 'castle', 'laboratory', 'greed', 'steampunk'};
+}
