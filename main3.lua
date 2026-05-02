@@ -1,6 +1,6 @@
 --$Name: Cubic_panos$
 --$Name(ru): Кубические панорамы$
---$Version: 0.0.8.5$
+--$Version: 0.0.8.7$
 --$Author: Lucky Ook$
 --$Author(ru): Lucky Ook$
 
@@ -22,7 +22,7 @@ game.inv = 'Зачем мне это?';
 global 'node' ('other')
 global 'pixls_viewport_scale' (1) -- масштабирование исходного массива пикселей вьюпорта
 global 'sprite_output_scale' (2) -- масштабирование вьюпорта после рендера
-global 'smooth' (1) -- сглаживание при масштабировании после рендера
+global 'smooth' (5) -- сглаживание при масштабировании после рендера
 global 'nodes_path' ('res')
 global 'fov' (0)         -- Поле зрения в градусах
 global 'yaw' (0)        -- Рысканье (горизонталь)
@@ -43,22 +43,13 @@ declare {
 	pointY = 0,
 	offsetX = 0,
 	offsetY = 0,
-	front = false,
-	back = false,
-	left = false,
-	right = false,
-	top = false,
-	bottom = false,
-	patches = {
-		--front = {
-			--[1] = {texture = pixels.new('pics/4/kam/010_pvd.jpg'),
-			--x = 614,
-			--y = 444,
-			--width = 176,
-			--height = 336
-			--depth = 0, -- глубина патча для порядка отрисовки
-		--},
-	},  -- таблица для хранения патчей
+	bottom = false,--#==============================#
+	front = false, --|                              |
+	right = false, --|   ПЕРЕМЕННЫЕ ДЛЯ ХРАНЕНИЯ    |
+	back = false,  --|   СТОРОН КУБИКА ПАНОРАМЫ     |
+	left = false,  --|                              |
+	top = false,   --#==============================#
+	patches = {},  -- таблица для хранения патчей
 	hotspots = {},  -- таблица для хранения горячих точек
 	pic_pos_x = false, -- переменная для хранения позиции x картинки сцены
 	pic_pos_y = false,-- переменная для хранения позиции y картинки сцены
@@ -172,52 +163,50 @@ end
 -- Основной рендер
 function render()
 	cam_canvas:clear(0,0,0)
-    for y = 0, CANVAS_HEIGHT - 1 do
-        for x = 0, CANVAS_WIDTH - 1 do
-            local ray = screenToRay(x, y)
-            local hit = intersectCube(ray)
-            if hit then
-                local tex = hit.texture
-                local px, py = hit.px, hit.py
-                
-                -- Отображаем патчи только на нужной стороне
-                local use_patch = false
-                for _, patch in ipairs(patches) do
-                  if patch.side == hit.name and  -- проверяем сторону куба
-                  px >= patch.pos_x and px < patch.pos_x + patch.width and
-                  py >= patch.pos_y and py < patch.pos_y + patch.height then
-										local r, g, b, a
-										if patch.animation then
-											local frame_width = patch.width -- ширина фрейма равна ширине патча
-											local frame_x = (patch.frame - 1) * frame_width
-											local tx = px - patch.pos_x + frame_x
-											r, g, b, a = patch.texture:val(tx, py - patch.pos_y)
-										--	if a > 254 then
-										--		cam_canvas:val(x, y, patch.texture:val(tx, py - patch.pos_y))
-										--	end
-										else
-											r, g, b, a = patch.texture:val(px - patch.pos_x, py - patch.pos_y)
-										--	if a > 254 then
-										--		cam_canvas:val(x, y, patch.texture:val(px - patch.pos_x, py - patch.pos_y))
-										--	end
-										end
-										if  a > 254 then
-											cam_canvas:val(x, y, r, g, b)
-											use_patch = true
-											break  -- прерываем цикл, если нашли подходящий патч
-										end
-                  end
-                end
-                 
-                if not use_patch then
-                  cam_canvas:val(x, y, tex:val(px, py))
-                end
-            else
-                cam_canvas:val(x, y, 0, 0, 0)
-            end
-        end
-    end
-    if enable_spots_highlight then
+		for y = 0, CANVAS_HEIGHT - 1 do
+			for x = 0, CANVAS_WIDTH - 1 do
+				local ray = screenToRay(x, y)
+				local hit = intersectCube(ray)
+				if hit then
+					local tex = hit.texture
+					local px, py = hit.px, hit.py
+					-- Отображаем патчи только на нужной стороне
+					local use_patch = false
+					for _, patch in ipairs(patches) do
+						if patch.side == hit.name and patch.active and  -- проверяем сторону куба
+							px >= patch.pos_x and px < patch.pos_x + patch.width and
+							py >= patch.pos_y and py < patch.pos_y + patch.height then
+							local r, g, b, a
+							if patch.animation then
+								local frame_width = patch.width -- ширина фрейма равна ширине патча
+								local frame_x = (patch.frame - 1) * frame_width
+								local tx = px - patch.pos_x + frame_x
+								r, g, b, a = patch.texture:val(tx, py - patch.pos_y)
+								--	if a > 254 then
+								--		cam_canvas:val(x, y, patch.texture:val(tx, py - patch.pos_y))
+								--	end
+							else
+								r, g, b, a = patch.texture:val(px - patch.pos_x, py - patch.pos_y)
+								--	if a > 254 then
+								--		cam_canvas:val(x, y, patch.texture:val(px - patch.pos_x, py - patch.pos_y))
+								--	end
+							end
+							if  a > 254 then
+								cam_canvas:val(x, y, r, g, b)
+								use_patch = true
+								break  -- прерываем цикл, если нашли подходящий патч
+							end
+						end
+					end
+					if not use_patch then
+						cam_canvas:val(x, y, tex:val(px, py))
+					end
+				else
+					cam_canvas:val(x, y, 0, 0, 0)
+				end
+			end
+		end
+		if enable_spots_highlight then
 			for _, spot in ipairs(hotspots) do
 					local side = spot.side
 					local texture = _G[side]
@@ -266,6 +255,13 @@ function sortPatchesByDepth()
     end)
 end
 
+-- Функция сортировки хотспотов по глубине
+function sortHotspotsByDepth()
+    table.sort(hotspots, function(a, b) 
+        return a.depth < b.depth 
+    end)
+end
+
 function add_patch(name, side, texture, pos_x, pos_y, width, height, depth,  active, run, animation )
     table.insert(patches, {
         name = name or 'none',       -- имя патча
@@ -277,25 +273,27 @@ function add_patch(name, side, texture, pos_x, pos_y, width, height, depth,  act
         height = height,
         depth = depth or 0,
         animation = animation or false, -- таблица с параметрами анимации
-        active = active or true,        -- текущий кадр
-        frame = 1,
+        active = active or false, -- флаг активности патча. Т.е. нужно ли его отрисовывать
+        frame = 1,                 -- текущий кадр
         run = run or false -- флаг проигрывания анимации
     })
     -- Вызываем сортировку после добавления нового патча
     sortPatchesByDepth()
 end
 
-function add_hotspot(name, side, x, y, width, height, cursor, highlight, action)
+function add_hotspot(name, side, x, y, width, height, cursor, highlight, depth, action, active)
     table.insert(hotspots, {
-        name = name,
-        side = side,
-        x = x,
-        y = y,
-        width = width,
-        height = height,
-        cursor = cursor,
-        highlight = highlight,
-        action = action
+        name = name,            -- имя хотспота
+        side = side,            -- сторона отображения
+        x = x,                  -- позиция х на стороне отображения
+        y = y,                  -- позиция у на стороне отображения
+        width = width,          -- высота хотспота
+        height = height,        -- ширина хотспота
+        cursor = cursor,        -- тип курсора
+        highlight = highlight,  -- цвет подсветки хотспота
+        depth = depth or 0,     -- параметр глубины
+        action = action,         -- действие при клике
+        active = active or false  -- флаг активности хотспота (по умолчанию false) Т.е. работает ли он.
     })
 end
 
@@ -309,9 +307,8 @@ function cursor_check ()
 		local hit = intersectCube(screenToRay(cx / pixls_viewport_scale / sprite_output_scale, cy / pixls_viewport_scale / sprite_output_scale))
 		if hit then
 		local is_hover = false
-		local cursor = false
 			for _, spot in ipairs(hotspots) do
-				if spot.side == hit.name then
+				if spot.side == hit.name and spot.active then
 					local tx = hit.px - spot.x
 					local ty = hit.py - spot.y
 					if tx >= 0 and tx < spot.width and ty >= 0 and ty < spot.height then
@@ -342,16 +339,25 @@ function hotspot_check (press,px, py)
 	if press and px and py then
 		local hit = intersectCube(screenToRay(pointX / pixls_viewport_scale / sprite_output_scale, pointY / pixls_viewport_scale / sprite_output_scale))
 		if hit then
+			local closest_spot = nil
+			local min_depth = math.huge
 			for _, spot in ipairs(hotspots) do
-				if spot.side == hit.name then
+				if spot.side == hit.name and spot.active then
 					local tx = hit.px - spot.x
 					local ty = hit.py - spot.y
 					if tx >= 0 and tx < spot.width and ty >= 0 and ty < spot.height then
 						--print (tx, ty)
-						spot.action()
-						break
+						--spot.action()
+						--break
+						if spot.depth < min_depth then
+							min_depth = spot.depth
+							closest_spot = spot
+						end
 					end
 				end
+			end
+			if closest_spot then
+				closest_spot.action()
 			end
 		end
 	end
@@ -400,8 +406,8 @@ function load_patches()
 	if here().node_patches then
 		for _,patch in pairs(here().node_patches) do
 			add_patch(patch.name, patch.side, patch.texture, patch.pos_x,
-			patch.pos_y, patch.width, patch.height, patch.depth, patch.active, patch.run,
-			patch.animation)
+			patch.pos_y, patch.width, patch.height, patch.depth, patch.active,
+			patch.run, patch.animation)
 		end
 	end
 	-- Сортируем все патчи после загрузки
@@ -414,11 +420,12 @@ function load_hotspots()
 	if here().node_hotspots then
 		for _,hotspot in pairs(here().node_hotspots) do
 			add_hotspot(hotspot.name, hotspot.side, hotspot.x, hotspot.y,
-			hotspot.width, hotspot.height, hotspot.cursor, hotspot.highlight, hotspot.action)
+			hotspot.width, hotspot.height, hotspot.cursor, hotspot.highlight,
+			hotspot.depth, hotspot.action, hotspot.active)
 		end
 	end
-	-- Сортируем все патчи после загрузки
-		--sortPatchesByDepth()
+	-- Сортируем все хотспоты после загрузки
+	sortHotspotsByDepth()
 end
 
 function cubic_clean()
@@ -590,7 +597,7 @@ room {
 	disp = "Лаборатория";
 	node_patches = {
 			kamin_anim = {name = 'kamin_anim', side = 'front', texture = 'pics/4/kam/kamin.png',
-			pos_x = 614, pos_y = 444, width = 176, height = 336, depth = 0, active = true, run = true, animation = {
+			pos_x = 614, pos_y = 444, width = 176, height = 336, depth = 0, active = false, run = true, animation = {
 				frames = 43,          -- кадров в анимации
 				loop = true,         -- анимация цикличная
 				direction = -1        -- направление проигрывания анимации
@@ -673,17 +680,22 @@ room {
 	end;
 	dsc = "";
 	node_patches = {
-		torch1 = {name = 'torch1',side = 'front', texture = 'pics/5/torch4.png', pos_x = 801, pos_y = 397, width = 226, height = 394, depth = -1, action = true},
-		door = {name = 'door',side = 'front', texture = 'pics/5/door.png', pos_x = 224, pos_y = 444, width = 356, height = 406, depth = 2, action = true},
-		torch = {name = 'torch',side = 'right', texture = 'pics/5/torch3.png', pos_x = 761, pos_y = 397, width = 226, height = 394, depth = 0, action = true},
-		torch2 ={name = 'torch2',side = 'front', texture = 'pics/5/torch4.png', pos_x = 761, pos_y = 397, width = 226, height = 394, depth = 7,  action = true},
+		torch1 = {name = 'torch1',side = 'front', texture = 'pics/5/torch4.png', pos_x = 801, pos_y = 397, width = 226, height = 394, depth = -1, active = true},
+		door = {name = 'door',side = 'front', texture = 'pics/5/door.png', pos_x = 224, pos_y = 444, width = 356, height = 406, depth = 2, active = true},
+		torch = {name = 'torch',side = 'right', texture = 'pics/5/torch3.png', pos_x = 761, pos_y = 397, width = 226, height = 394, depth = 0, active = true},
+		torch2 ={name = 'torch2',side = 'front', texture = 'pics/5/torch4.png', pos_x = 761, pos_y = 397, width = 226, height = 394, depth = 7,  active = true},
 	};
 	{
 		node_hotspots = {
-			first_spot = {name = 'first_spot', side = 'front', x = 223, y = 443, width = 356, height = 406, cursor = cursor_hover, highlight = {128, 256, 160, 2},
-				action = function() _'ерундовина'.ecran = _'ерундовина'.ecran.."^ngfhgfhf" pn "Гибралтар" end},
-			way_spot = {name = 'way_spot', side = 'right', x = 560, y = 396, width = 227, height = 395, cursor = cursor_forvard, highlight = {256, 128, 128, 2},
-				action = function() walk 'laboratory'; setPoint = false; end},
+			first_spot = {name = 'first_spot', side = 'front', x = 223, y = 443, width = 356, height = 406, cursor = cursor_hover, highlight = {128, 256, 160, 2}, depth = 2,
+			action = function() _'ерундовина'.ecran = _'ерундовина'.ecran.."^first_spot_action" pn "Гибралтар" end,
+			active = true},
+			second_spot = {name = 'second_spot', side = 'front', x = 423, y = 243, width = 256, height = 406, cursor = cursor_hover, highlight = {128, 160, 256, 2}, depth = 3,
+				action = function() _'ерундовина'.ecran = _'ерундовина'.ecran.."^second_spot_action" pn "Лабрадор" end,
+				active = false},
+			way_spot = {name = 'way_spot', side = 'right', x = 560, y = 396, width = 227, height = 395, cursor = cursor_forvard, highlight = {256, 128, 128, 2}, depth = 0,
+				action = function() walk 'laboratory'; setPoint = false; end,
+				active = true},
 		};
 	}; -- нет смысла сохранять хотспоты в сейв
 	onenter = function()
@@ -693,7 +705,6 @@ room {
 		timer:set(50)
 	end;
 	enter = function()
-		print (pixls_viewport_scale)
 		load_patches()
 		load_hotspots()
 	end;
