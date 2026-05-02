@@ -1,0 +1,46 @@
+
+<svg width="1024" height="1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Прозрачный квадрат (контур без заливки) -->
+  <rect x="0" y="0" width="1024" height="1024"
+        fill="none" stroke="none" />
+
+  <!-- 9 горизонтальных линий -->
+  <line x1="0" y1="84" x2="1024" y2="84" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="216" x2="1024" y2="216" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="324" x2="1024" y2="324" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="422" x2="1024" y2="422" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="512" x2="1024" y2="512" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="602" x2="1024" y2="602" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="700" x2="1024" y2="700" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="808" x2="1024" y2="808" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="940" x2="1024" y2="940" stroke="#000" stroke-width="1" />
+    <!-- 9 вертикальных линий -->
+  <line x1="84" y1="0" x2="84" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="216" y1="0" x2="216" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="324" y1="0" x2="324" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="422" y1="0" x2="422" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="512" y1="0" x2="512" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="602" y1="0" x2="602" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="700" y1="0" x2="700" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="808" y1="0" x2="808" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="940" y1="0" x2="940" y2="1024" stroke="#000" stroke-width="1" />
+   <!-- Диагональные линии pl -->
+  <line x1="0" y1="84" x2="1024" y2="940" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="216" x2="1024" y2="808" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="324" x2="1024" y2="700" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="422" x2="1024" y2="602" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="602" x2="1024" y2="422" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="700" x2="1024" y2="324" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="808" x2="1024" y2="216" stroke="#000" stroke-width="1" />
+  <line x1="0" y1="940" x2="1024" y2="84" stroke="#000" stroke-width="1" />
+   <!-- Диагональные линии ud -->
+  <line x1="84" y1="0" x2="940" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="216" y1="0" x2="808" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="324" y1="0" x2="700" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="422" y1="0" x2="602" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="602" y1="0" x2="422" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="700" y1="0" x2="324" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="808" y1="0" x2="216" y2="1024" stroke="#000" stroke-width="1" />
+  <line x1="940" y1="0" x2="84" y2="1024" stroke="#000" stroke-width="1" />
+   <!-- 84,216,324,422,602,700,808,940 -->
+</svg>
